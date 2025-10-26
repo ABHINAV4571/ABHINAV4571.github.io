@@ -1,77 +1,216 @@
-<!DOCTYPE html>
+<!--
+Filename: index.html
+Description: Single-file live news website. It fetches news from NewsAPI.org (or Google Custom Search) and updates automatically.
+IMPORTANT SECURITY NOTE:
+- Placing an API key in client-side JavaScript exposes it publicly. Use the provided Node.js proxy (server.js) to keep your key secret. Instructions below.
+- Your provided API key: AIzaSyCR6F7PNqCTOYuT6bKzv8XUkfdaUsAE5MY
+-->
+
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Personal Video Downloader</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f0f2f5;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-top: 50px;
-  }
-  h2 {
-    color: #1e90ff;
-  }
-  .container {
-    background: #fff;
-    padding: 20px 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    text-align: center;
-  }
-  input[type="file"] {
-    margin: 15px 0;
-  }
-  button {
-    background: #1e90ff;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 6px;
-    font-size: 16px;
-    cursor: pointer;
-  }
-  button:hover {
-    background: #1c86ee;
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live News — Auto Updating News Site</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#00aaff}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;background:linear-gradient(180deg,#041027 0%, #071424 100%);color:#e6eef6}
+    header{padding:20px 24px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:46px;height:46px;background:linear-gradient(135deg,var(--accent),#7b61ff);border-radius:10px;display:grid;place-items:center;font-weight:700}
+    h1{font-size:18px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    select,input{padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.04);color:inherit}
+    button{padding:8px 12px;border-radius:8px;border:none;background:var(--accent);color:#001;cursor:pointer}
+    main{padding:20px 24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .thumb{width:100%;height:160px;object-fit:cover;border-radius:8px}
+    .meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px;margin-top:8px}
+    .title{font-weight:600;margin:8px 0}
+    .desc{font-size:14px;color:#cfe6ff}
+    footer{padding:16px 24px;color:var(--muted);font-size:13px}
+    .empty{padding:40px;text-align:center;color:var(--muted)}
+  </style>
 </head>
 <body>
+  <header>
+    <div class="brand">
+      <div class="logo">N</div>
+      <div>
+        <h1>NewsNow — Live, Auto-updating</h1>
+        <div style="color:var(--muted);font-size:13px">Powered by your API key — updates automatically</div>
+      </div>
+    </div>
 
-<div class="container">
-  <h2>Personal Video Downloader</h2>
-  <p>Select a video file from your device and download it:</p>
-  <input type="file" id="fileInput" accept="video/*">
-  <br>
-  <button onclick="downloadFile()">Download</button>
-</div>
+    <div class="controls">
+      <select id="country">
+        <option value="us">United States</option>
+        <option value="in">India</option>
+        <option value="gb">United Kingdom</option>
+        <option value="au">Australia</option>
+        <option value="ca">Canada</option>
+      </select>
+      <select id="category">
+        <option value="general">All</option>
+        <option value="business">Business</option>
+        <option value="technology">Technology</option>
+        <option value="sports">Sports</option>
+        <option value="entertainment">Entertainment</option>
+        <option value="health">Health</option>
+        <option value="science">Science</option>
+      </select>
+      <input id="q" placeholder="Search..." />
+      <button id="refresh">Refresh</button>
+      <button id="autoToggle">Auto: ON</button>
+    </div>
+  </header>
 
-<script>
-function downloadFile() {
-  const fileInput = document.getElementById('fileInput');
-  if (fileInput.files.length === 0) {
-    alert('Please select a video file first!');
-    return;
-  }
+  <main>
+    <div id="status" style="color:var(--muted);margin-bottom:12px">Last updated: —</div>
+    <div id="articles" class="grid"></div>
+    <div id="empty" class="empty" style="display:none">No articles found.</div>
+  </main>
+  <footer>
+    Tip: For production, run the server proxy (server.js) so your API key is not exposed in the browser.
+  </footer>
 
-  const file = fileInput.files[0];
-  const url = URL.createObjectURL(file);
+  <script>
+    // ------------------ CONFIG ------------------
+    // You provided this key. WARNING: embedding in frontend exposes it publicly.
+    // Use the Node proxy below for production. If you want to run the frontend-only demo, keep it here:
+    const FRONTEND_API_KEY = 'AIzaSyCR6F7PNqCTOYuT6bKzv8XUkfdaUsAE5MY';
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+    // If you run the optional Node proxy, set PROXY_BASE = '/' or 'http://localhost:3000'
+    const PROXY_BASE = '/api'; // change to '' to call NewsAPI directly (not recommended)
 
-  URL.revokeObjectURL(url);
-  alert('Download started for: ' + file.name);
-}
-</script>
+    // Auto refresh interval (ms)
+    const AUTO_MS = 5 * 60 * 1000; // 5 minutes
+    let autoOn = true;
+    let autoTimer = null;
 
+    // ------------------ HELPERS ------------------
+    const $ = id => document.getElementById(id);
+    function timeNow(){ return new Date().toLocaleString(); }
+
+    // Build the API URL. This example uses NewsAPI.org top-headlines endpoint.
+    // If you use Google Custom Search, you'll need a different URL and a cx (search engine id).
+    function buildUrl({country,category,q,pageSize=30}){
+      if(PROXY_BASE){
+        const params = new URLSearchParams({country,category,q,pageSize});
+        return `${PROXY_BASE}/top-headlines?${params.toString()}`;
+      } else {
+        const params = new URLSearchParams({country,category,q,pageSize,apiKey:FRONTEND_API_KEY});
+        return `https://newsapi.org/v2/top-headlines?${params.toString()}`;
+      }
+    }
+
+    async function fetchNews(){
+      const country = $('country').value;
+      const category = $('category').value === 'general' ? '' : $('category').value;
+      const q = $('q').value.trim();
+      const url = buildUrl({country,category,q});
+
+      try{
+        $('status').textContent = 'Loading...';
+        const res = await fetch(url);
+        if(!res.ok) throw new Error('Fetch failed: '+res.status);
+        const data = await res.json();
+        // If using the proxy, the proxy will return the same NewsAPI shape.
+        renderArticles(data.articles || []);
+        $('status').textContent = `Last updated: ${timeNow()} — ${data.articles?data.articles.length:0} articles`;
+      }catch(e){
+        console.error(e);
+        $('status').textContent = 'Error loading news. See console.';
+      }
+    }
+
+    function renderArticles(list){
+      const out = $('articles');
+      out.innerHTML = '';
+      if(!list || list.length===0){ $('empty').style.display='block'; return; } else $('empty').style.display='none';
+
+      for(const a of list){
+        const card = document.createElement('div'); card.className='card';
+        const img = document.createElement('img'); img.className='thumb'; img.src = a.urlToImage || 'https://via.placeholder.com/800x400?text=No+Image';
+        const title = document.createElement('div'); title.className='title'; title.textContent = a.title || 'Untitled';
+        const desc = document.createElement('div'); desc.className='desc'; desc.textContent = a.description || a.content || '';
+        const meta = document.createElement('div'); meta.className='meta';
+        const src = document.createElement('div'); src.textContent = a.source?.name || 'Unknown';
+        const time = document.createElement('div'); time.textContent = new Date(a.publishedAt || Date.now()).toLocaleString();
+        meta.appendChild(src); meta.appendChild(time);
+        const link = document.createElement('a'); link.href = a.url; link.target='_blank'; link.rel='noopener noreferrer'; link.textContent='Read more';
+
+        card.appendChild(img); card.appendChild(title); card.appendChild(meta); card.appendChild(desc); card.appendChild(link);
+        out.appendChild(card);
+      }
+    }
+
+    // ------------------ UI wiring ------------------
+    $('refresh').addEventListener('click', fetchNews);
+    $('autoToggle').addEventListener('click', ()=>{
+      autoOn = !autoOn; $('autoToggle').textContent = `Auto: ${autoOn? 'ON':'OFF'}`;
+      if(autoOn) startAuto(); else stopAuto();
+    });
+
+    $('q').addEventListener('keyup', (e)=>{ if(e.key==='Enter') fetchNews(); });
+    $('country').addEventListener('change', fetchNews);
+    $('category').addEventListener('change', fetchNews);
+
+    function startAuto(){ stopAuto(); autoTimer = setInterval(fetchNews, AUTO_MS); }
+    function stopAuto(){ if(autoTimer) clearInterval(autoTimer); autoTimer = null; }
+
+    // On load
+    (function init(){
+      // If using direct NewsAPI in frontend, ensure you set PROXY_BASE to '' above.
+      fetchNews();
+      if(autoOn) startAuto();
+    })();
+  </script>
+
+
+  <!--
+  ------------------ OPTIONAL: Node.js proxy (server.js) ------------------
+  Save this as server.js and run: npm init -y && npm i express node-fetch cors
+  Then: node server.js
+  This proxy keeps your API key secret and avoids CORS issues. It forwards requests to NewsAPI.org.
+
+  // server.js
+  const express = require('express');
+  const fetch = require('node-fetch');
+  const cors = require('cors');
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+
+  // Set your API key here (DO NOT commit this file to a public repo)
+  const NEWSAPI_KEY = 'AIzaSyCR6F7PNqCTOYuT6bKzv8XUkfdaUsAE5MY';
+
+  // Example route: /api/top-headlines?country=in&category=technology&q=apple
+  app.get('/api/top-headlines', async (req, res) => {
+    try{
+      const params = new URLSearchParams(req.query);
+      params.set('apiKey', NEWSAPI_KEY);
+      // Default to 30 articles
+      if(!params.get('pageSize')) params.set('pageSize', '30');
+
+      const url = `https://newsapi.org/v2/top-headlines?${params.toString()}`;
+      const r = await fetch(url);
+      const json = await r.json();
+      return res.json(json);
+    }catch(err){
+      console.error(err); res.status(500).json({error: String(err)});
+    }
+  });
+
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, ()=> console.log('Proxy listening on', PORT));
+
+  -------------------------------------------------------------------------
+  Additional notes:
+  - NewsAPI.org free tier disallows requests from client-side browsers due to CORS and exposes your key. Use the proxy above.
+  - If you prefer Google Custom Search (to search news-like results), you'll need a search engine id (cx) and slightly different endpoints.
+  - To publish: host server.js on a small VPS (Render, Fly, Heroku) and deploy index.html to Netlify/Vercel or serve from the same Express app.
+-->
 </body>
 </html>
